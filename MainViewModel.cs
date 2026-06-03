@@ -18,7 +18,14 @@ namespace CanvasDrawing
         public double CircleRadius
         {
             get => _circleRadius;
-            set { if (_circleRadius != value) { _circleRadius = value; OnPropertyChanged(); } }
+            set
+            {
+                if (_circleRadius != value)
+                {
+                    _circleRadius = value;
+                    OnPropertyChanged();
+                }
+            }
         }
 
         public double CenterX { get; } = 200;
@@ -28,7 +35,14 @@ namespace CanvasDrawing
         public string StatusText
         {
             get => _statusText;
-            set { if (_statusText != value) { _statusText = value; OnPropertyChanged(); } }
+            set
+            {
+                if (_statusText != value)
+                {
+                    _statusText = value;
+                    OnPropertyChanged();
+                }
+            }
         }
 
         public ObservableCollection<ActivityRecord> Activities { get; } = new();
@@ -61,7 +75,8 @@ namespace CanvasDrawing
             MouseEnterCommand = new RelayCommand(async _ => await OnMouseEnter());
             MouseLeaveCommand = new RelayCommand(async _ => await OnMouseLeave());
             ClearDbCommand = new RelayCommand(async _ => await ClearDb());
-            _ = LoadData();
+
+            _ = LoadDataAsync();
         }
 
         private async Task OnMouseEnter()
@@ -76,14 +91,25 @@ namespace CanvasDrawing
             if (_hoverStart.HasValue)
             {
                 var sec = (DateTime.Now - _hoverStart.Value).TotalSeconds;
-                await _db.SaveActivityAsync(sec);
+
+                int newId = await _db.SaveActivityAsync(sec);
+
+                var newRecord = new ActivityRecord
+                {
+                    Id = newId,
+                    Time = DateTime.Now.ToString("HH:mm:ss dd.MM.yyyy"),
+                    Duration = Math.Round(sec, 2)
+                };
+
+                Activities.Insert(0, newRecord);
+                TotalCount++;
+                TotalTime += newRecord.Duration;
+
                 _hoverStart = null;
             }
 
-            StatusText = "...";
-            await Animate(50);
-            await LoadData();
             StatusText = "Наведите мышь на круг";
+            await Animate(50);
         }
 
         private async Task Animate(double target)
@@ -94,22 +120,32 @@ namespace CanvasDrawing
             double start = CircleRadius;
             var t0 = DateTime.Now;
 
-            while (true)
+            try
             {
-                if (_cts.Token.IsCancellationRequested) break;
-                double progress = Math.Min((DateTime.Now - t0).TotalMilliseconds / 300, 1.0);
-                CircleRadius = start + (target - start) * progress;
+                while (!_cts.Token.IsCancellationRequested)
+                {
+                    double progress = Math.Min((DateTime.Now - t0).TotalMilliseconds / 300.0, 1.0);
+                    CircleRadius = start + (target - start) * progress;
 
-                if (progress >= 1.0) break;
-                await Task.Delay(16, _cts.Token);
+                    if (progress >= 1.0) break;
+
+                    await Task.Delay(16, _cts.Token);
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                
             }
         }
 
-        private async Task LoadData()
+        private async Task LoadDataAsync()
         {
             var list = await _db.GetActivitiesAsync();
             Activities.Clear();
-            foreach (var r in list) Activities.Add(r);
+            foreach (var r in list)
+            {
+                Activities.Add(r);
+            }
 
             var sum = await _db.GetSummaryAsync();
             TotalCount = sum.Count;
@@ -119,12 +155,21 @@ namespace CanvasDrawing
         private async Task ClearDb()
         {
             await _db.ClearAllActivitiesAsync();
-            await LoadData();
+            Activities.Clear();
+            TotalCount = 0;
+            TotalTime = 0;
             StatusText = "База очищена";
+
+            _ = Task.Delay(2000).ContinueWith(_ =>
+            {
+                if (StatusText == "База очищена")
+                    StatusText = "Наведите мышь на круг";
+            }, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
         public void Dispose()
         {
+            _cts?.Cancel();
             _cts?.Dispose();
             _db?.Dispose();
         }

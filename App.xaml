@@ -4,7 +4,6 @@
              xmlns:local="clr-namespace:CanvasDrawing"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-        <!-- Регистрируем конвертеры здесь -->
         <local:RadiusToDiameterConverter x:Key="RadiusToDiameterConverter"/>
         <local:NegativeRadiusConverter x:Key="NegativeRadiusConverter"/>
     </Application.Resources>

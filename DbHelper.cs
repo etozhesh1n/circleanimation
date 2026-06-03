@@ -15,34 +15,47 @@ namespace CanvasDrawing
     public class DatabaseService : IDisposable
     {
         private readonly string _connectionString =
-            "Host=localhost;Port=5432;Database=canvas_drawing;Username=postgres;Password=0000";
+             "Host=localhost;Port=5432;Database=canvas_drawing;Username=postgres;Password=0000";
 
-        public DatabaseService() => InitializeDatabase();
-
-        private void InitializeDatabase()
+        public DatabaseService()
         {
-            using var conn = new NpgsqlConnection(_connectionString);
-            conn.Open();
-            var cmd = conn.CreateCommand();
-            cmd.CommandText = @"
-                CREATE TABLE IF NOT EXISTS activity_log (
-                    id SERIAL PRIMARY KEY,
-                    activity_time TIMESTAMP NOT NULL,
-                    duration_seconds DOUBLE PRECISION NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )";
-            cmd.ExecuteNonQuery();
+            _ = InitializeDatabaseAsync();
         }
 
-        public async Task SaveActivityAsync(double durationSeconds)
+        private async Task InitializeDatabaseAsync()
+        {
+            try
+            {
+                await using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS activity_log (
+                        id SERIAL PRIMARY KEY,
+                        activity_time TIMESTAMP NOT NULL,
+                        duration_seconds DOUBLE PRECISION NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )";
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка инициализации БД: {ex.Message}");
+            }
+        }
+
+        public async Task<int> SaveActivityAsync(double durationSeconds)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
-            var cmd = conn.CreateCommand();
-            cmd.CommandText = "INSERT INTO activity_log (activity_time, duration_seconds) VALUES (@t, @d)";
-            cmd.Parameters.AddWithValue("@t", DateTime.Now);
-            cmd.Parameters.AddWithValue("@d", Math.Round(durationSeconds, 2));
-            await cmd.ExecuteNonQueryAsync();
+            await using var cmd = conn.CreateCommand();
+
+            cmd.CommandText = "INSERT INTO activity_log (activity_time, duration_seconds) VALUES (@t, @d) RETURNING id";
+            cmd.Parameters.AddWithValue("t", DateTime.Now);
+            cmd.Parameters.AddWithValue("d", Math.Round(durationSeconds, 2));
+
+            var result = await cmd.ExecuteScalarAsync();
+            return Convert.ToInt32(result);
         }
 
         public async Task<List<ActivityRecord>> GetActivitiesAsync()
@@ -51,8 +64,8 @@ namespace CanvasDrawing
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT id, activity_time, duration_seconds FROM activity_log ORDER BY id DESC LIMIT 50";
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT id, activity_time, duration_seconds FROM activity_log ORDER BY id DESC";
 
             await using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
@@ -61,19 +74,18 @@ namespace CanvasDrawing
                 {
                     Id = reader.GetInt32(0),
                     Time = reader.GetDateTime(1).ToString("HH:mm:ss dd.MM.yyyy"),
-                    Duration = reader.GetDouble(2)
+                    Duration = reader.GetDouble(2) 
                 });
             }
             return list;
         }
 
-        // Получение сводной статистики
         public async Task<(int Count, double TotalTime)> GetSummaryAsync()
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var cmd = conn.CreateCommand();
+            await using var cmd = conn.CreateCommand(); 
             cmd.CommandText = "SELECT COUNT(*), COALESCE(SUM(duration_seconds), 0) FROM activity_log";
 
             await using var reader = await cmd.ExecuteReaderAsync();
@@ -84,12 +96,11 @@ namespace CanvasDrawing
             return (0, 0);
         }
 
-        // Полная очистка таблицы
         public async Task ClearAllActivitiesAsync()
         {
-            await using var conn = new NpgsqlConnection(_connectionString);
+            await using var conn = new NpgsqlConnection(_connectionString); 
             await conn.OpenAsync();
-            var cmd = conn.CreateCommand();
+            await using var cmd = conn.CreateCommand();
             cmd.CommandText = "DELETE FROM activity_log";
             await cmd.ExecuteNonQueryAsync();
         }
