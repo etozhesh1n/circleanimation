@@ -1,0 +1,58 @@
+﻿<Window x:Class="CanvasDrawing.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+        xmlns:local="clr-namespace:CanvasDrawing"
+        Title="Учебное MVVM приложение" Height="500" Width="800">
+
+    <Window.Resources>
+        <local:RadiusToDiameterConverter x:Key="RadiusToDiameterConverter"/>
+        <local:NegativeRadiusConverter x:Key="NegativeRadiusConverter"/>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="250"/>
+        </Grid.ColumnDefinitions>
+
+        <Canvas Grid.Column="0" Background="#EEE">
+            <Ellipse Fill="Blue" 
+                     Canvas.Left="{Binding CenterX}" 
+                     Canvas.Top="{Binding CenterY}"
+                     Width="{Binding CircleRadius, Converter={StaticResource RadiusToDiameterConverter}}"
+                     Height="{Binding CircleRadius, Converter={StaticResource RadiusToDiameterConverter}}">
+                <Ellipse.RenderTransform>
+                    <TranslateTransform 
+                        X="{Binding CircleRadius, Converter={StaticResource NegativeRadiusConverter}}"
+                        Y="{Binding CircleRadius, Converter={StaticResource NegativeRadiusConverter}}"/>
+                </Ellipse.RenderTransform>
+
+                <i:Interaction.Triggers>
+                    <i:EventTrigger EventName="MouseEnter">
+                        <i:InvokeCommandAction Command="{Binding MouseEnterCommand}"/>
+                    </i:EventTrigger>
+                    <i:EventTrigger EventName="MouseLeave">
+                        <i:InvokeCommandAction Command="{Binding MouseLeaveCommand}"/>
+                    </i:EventTrigger>
+                </i:Interaction.Triggers>
+            </Ellipse>
+        </Canvas>
+
+        <StackPanel Grid.Column="1" Margin="10,0,0,0">
+            <TextBlock Text="{Binding StatusText}" Margin="0,0,0,10"/>
+            <TextBlock Text="{Binding TotalCount, StringFormat='Активностей: {0}'}" Margin="0,0,0,5"/>
+            <TextBlock Text="{Binding TotalTime, StringFormat='Время: {0:F2} сек'}" Margin="0,0,0,10"/>
+
+            <DataGrid ItemsSource="{Binding Activities}" IsReadOnly="True" 
+                      AutoGenerateColumns="False" Height="250" CanUserAddRows="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="30"/>
+                    <DataGridTextColumn Header="Сек" Binding="{Binding Duration, StringFormat=F2}" Width="50"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <Button Content="Очистить БД" Command="{Binding ClearDbCommand}" Margin="0,10,0,0"/>
+        </StackPanel>
+    </Grid>
+</Window>

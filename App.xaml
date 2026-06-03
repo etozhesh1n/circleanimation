@@ -1,0 +1,11 @@
+﻿<Application x:Class="CanvasDrawing.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:CanvasDrawing"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <!-- Регистрируем конвертеры здесь -->
+        <local:RadiusToDiameterConverter x:Key="RadiusToDiameterConverter"/>
+        <local:NegativeRadiusConverter x:Key="NegativeRadiusConverter"/>
+    </Application.Resources>
+</Application>
